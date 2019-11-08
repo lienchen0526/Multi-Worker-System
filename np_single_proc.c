@@ -1270,13 +1270,7 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 DelZDELAY((ClientPool -> MainPool)[client_id]);
                 DECDVAL((ClientPool -> MainPool)[client_id]);
                 return -1;
-            }else{
-                (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate = false;
-                sprintf(pipemsg, "*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
-                    (ClientPool -> user_name)[client_id], client_id + 1, (ClientPool -> user_name)[tmp -> pipefrom_client],
-                    tmp -> pipefrom_client + 1, tmp -> origin_cmd);
-                NPyell(ClientPool, pipemsg);
-            };
+            }else{};
         };
 
         if(tmp -> trgt_client >= 0){
@@ -1412,6 +1406,10 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside = -1;
                 (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].writeside = -1;
                 (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate = false;
+                sprintf(pipemsg, "*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
+                    (ClientPool -> user_name)[client_id], client_id + 1, (ClientPool -> user_name)[tmp -> pipefrom_client],
+                    tmp -> pipefrom_client + 1, tmp -> origin_cmd);
+                NPyell(ClientPool, pipemsg);
             };
             if((tmp -> trgt_client) >= 0){
                 sprintf(pipemsg, "*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
