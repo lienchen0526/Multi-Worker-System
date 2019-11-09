@@ -31,7 +31,7 @@
 typedef struct _command
 {
     
-    int cmd_argc;
+    int cmd_argc, pipefrom_client, trgt_client;
     int pipemechanism; /* 0: ordinary pipe, 1: number pipe, 2: error pipe, 3: redirection, -1: EOF */
     int delayval; /*the number of delayed value*/
     bool builtin;
@@ -120,6 +120,10 @@ int initCMDpkg(NPcommandPack *trgt){
     NPcommandPack.
     */
     NPprintDBG("Get into initCMDpgk function", DBGLVL);
+    trgt -> trgt_client = -1;
+    trgt -> pipefrom_client = -1;
+    trgt -> delayval = -1;
+
     (trgt -> filename) = (char *)calloc(2 * MAXCMDLENGTH, sizeof(char));
     (trgt -> cmd_argv) = (char **)calloc(2 * MAXCMDLENGTH, sizeof(char *));
     for(int i = 0; i < 2 * MAXCMDLENGTH; i++){
