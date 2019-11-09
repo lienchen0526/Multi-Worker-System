@@ -1213,6 +1213,7 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
         return -1;
     };
 
+    bool fail_flag = false;
     char exitcmd[] = "exit";
     char setenvcmd[] = "setenv";
     char penvcmd[] = "printenv";
@@ -1260,18 +1261,15 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
             if(!(ClientPool -> active_flag)[tmp -> pipefrom_client]){
                 sprintf(errmsg, "*** Error: user #%d does not exist yet. ***\n", tmp -> pipefrom_client +1);
                 write(exe_csfd, errmsg, strlen(errmsg));
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{};
-            if(!(ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate){
-                sprintf(errmsg, "The client you specified does not pipe you any thing\n");
-                write(exe_csfd, errmsg, strlen(errmsg));
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{};
-        };
+                fail_flag = true;
+            }else{
+                if(!(ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate){
+                    sprintf(errmsg, "The client you specified does not pipe you any thing\n");
+                    write(exe_csfd, errmsg, strlen(errmsg));
+                    fail_flag = true;
+                }else{}
+            };
+        }else{/*pipefrom_client legal*/};
 
         if(tmp -> trgt_client >= 0){
             // user pipe
@@ -1279,28 +1277,42 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 //
                 sprintf(errmsg, "*** Error: user #%d does not exist yet. ***\n", tmp -> trgt_client +1);
                 write(exe_csfd, errmsg, strlen(errmsg));
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{};
-
-            if(!(ClientPool -> userpipe)[client_id][tmp -> trgt_client].is_activate){
-                pipe(pipes);
-                (ClientPool -> userpipe)[client_id][tmp -> trgt_client].is_activate = true;
-                (ClientPool -> userpipe)[client_id][tmp -> trgt_client].readside = pipes[0];
-                (ClientPool -> userpipe)[client_id][tmp -> trgt_client].writeside = pipes[1];
-                
+                fail_flag = true;
             }else{
-                //print error message
-                sprintf(errmsg, "*** Error: the pipe already exists. ***\n");
-                write(exe_csfd, errmsg, strlen(errmsg));
+                if(!(ClientPool -> userpipe)[client_id][tmp -> trgt_client].is_activate){
+                    if(!fail_flag){
+                        pipe(pipes);
+                        (ClientPool -> userpipe)[client_id][tmp -> trgt_client].is_activate = true;
+                        (ClientPool -> userpipe)[client_id][tmp -> trgt_client].readside = pipes[0];
+                        (ClientPool -> userpipe)[client_id][tmp -> trgt_client].writeside = pipes[1];
+                    }else{/*illegal pipefrom client detected*/};
+                }else{
+                    //print error message
+                    sprintf(errmsg, "*** Error: the pipe already exists. ***\n");
+                    write(exe_csfd, errmsg, strlen(errmsg));
+                    fail_flag = true;
+                };
+            };
+            if(fail_flag){
                 DelZDELAY((ClientPool -> MainPool)[client_id]);
                 DECDVAL((ClientPool -> MainPool)[client_id]);
                 return -1;
-            };
+            }else{/*user pipe legal*/};
+
         }else if((tmp -> filename)[0] != '\0'){
+            if(fail_flag){
+                DelZDELAY((ClientPool -> MainPool)[client_id]);
+                DECDVAL((ClientPool -> MainPool)[client_id]);
+                return -1;
+            }else{/*user pipe legal*/};
             pipes[1] = open(tmp -> filename, O_RDWR | O_CREAT | O_TRUNC, 0666);
         }else if(tmp -> delayval >= 0){
+            if(fail_flag){
+                DelZDELAY((ClientPool -> MainPool)[client_id]);
+                DECDVAL((ClientPool -> MainPool)[client_id]);
+                return -1;
+            }else{/*user pipe legal*/};
+
             ref = SearchPCB((ClientPool -> MainPool)[client_id], tmp -> delayval);
             if(ref == 0){
                 //NPprintSinglePack(tmp);
@@ -1318,6 +1330,12 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 pipes[1] = ref -> writePipe;
             };
         }else{
+            if(fail_flag){
+                DelZDELAY((ClientPool -> MainPool)[client_id]);
+                DECDVAL((ClientPool -> MainPool)[client_id]);
+                return -1;
+            }else{/*user pipe legal*/};
+
             pipes[1] = exe_csfd;
         };
         /*
