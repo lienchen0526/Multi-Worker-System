@@ -31,10 +31,14 @@
 typedef struct _command
 {
     
-    int cmd_argc, pipefrom_client, trgt_client;
-    int pipemechanism; /* 0: ordinary pipe, 1: number pipe, 2: error pipe, 3: redirection, -1: EOF */
+    int cmd_argc, pipefrom_client, trgt_client, client_id;
+    int pipemechanism; 
+    /* 0: ordinary pipe, 1: number pipe, 2: error pipe, 3: redirection, -1: EOF */
+
     int delayval; /*the number of delayed value*/
     bool builtin;
+
+    char *origin_cmd;
     char **cmd_argv;
     char *filename; /*for redirection*/
     struct _command *next;
@@ -123,7 +127,9 @@ int initCMDpkg(NPcommandPack *trgt){
     trgt -> trgt_client = -1;
     trgt -> pipefrom_client = -1;
     trgt -> delayval = -1;
+    trgt -> client_id = -1;
 
+    (trgt -> origin_cmd) = (char *)calloc(2 * MAXCMDLENGTH, sizeof(char));
     (trgt -> filename) = (char *)calloc(2 * MAXCMDLENGTH, sizeof(char));
     (trgt -> cmd_argv) = (char **)calloc(2 * MAXCMDLENGTH, sizeof(char *));
     for(int i = 0; i < 2 * MAXCMDLENGTH; i++){
@@ -146,6 +152,7 @@ int finalizeCMDpkg(NPcommandPack *trgt){
         free((trgt -> cmd_argv)[i]);
         NPprintDBG("in finalizeCMDpkg: successfully free single row of argv",4);
     };
+    free(trgt -> origin_cmd);
     free(trgt -> cmd_argv);
     NPprintDBG("in finalizeCMDpgk: sussessfully finalize command pack", 3);
 };
