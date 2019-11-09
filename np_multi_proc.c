@@ -372,7 +372,7 @@ return a pointer for the first command pack
 note: caller take account for free the returned
 pointer
 */
-NPcommandPack *ParseCMD(char **argv){
+NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
     /*
     the buffer is original, unmodified got from stdin
     */
@@ -388,15 +388,32 @@ NPcommandPack *ParseCMD(char **argv){
     int argv_indexer = 0;
     int exec_argc;
     int tmp_dlay = 0;
+    int tmp_named_pipe = 0;
     int tmp_iterator = 1;
     char *noline = 0;
     char **exec_argv = argv;
+    char yell_dflt[] = "yell";
+    char tell_dflt[] = "tell";
 
     NPcommandPack *Head, *tmp;
     Head = 0;
     tmp = 0;
 
     exec_argc = 0;
+
+    if((strcmp(argv[0], yell_dflt) == 0) || 
+        (strcmp(argv[0], tell_dflt) == 0)){
+
+        tmp = (NPcommandPack *)malloc(sizeof(NPcommandPack));
+        initCMDpkg(tmp);
+        strcpy(tmp -> origin_cmd, origin);
+        for(int i = 0; i < argc; i++){
+            strcpy((tmp -> cmd_argv)[i], argv[i]);
+        };
+        (tmp -> cmd_argv)[argc] = 0;
+        tmp -> cmd_argc = argc;
+        return tmp;
+    }else{};
 
     for(int i = 0; i < argc; i++){
         if(argv[i][0] == '|'){
@@ -410,6 +427,8 @@ NPcommandPack *ParseCMD(char **argv){
                 tmp = tmp -> next;
             };
             initCMDpkg(tmp);
+            strcpy(tmp -> origin_cmd, origin);
+            tmp -> client_id = client_id;
             for(int j = 0; j < exec_argc; j++){
                 strcpy((tmp -> cmd_argv)[j], exec_argv[j]);
             };
@@ -427,7 +446,18 @@ NPcommandPack *ParseCMD(char **argv){
                 };
                 tmp_iterator = 1;
             };
-
+            if(argv[i + 1][0] == '<'){
+                //oh~, some client have to pipe in to this command
+                tmp_iterator = 1;
+                tmp -> pipefrom_client = 0;
+                while(argv[i + 1][tmp_iterator] != '\0'){
+                    tmp -> pipefrom_client = (tmp -> pipefrom_client) * 10 + (argv[i + 1][tmp_iterator] - '0');
+                    tmp_iterator ++;
+                };
+                tmp -> pipefrom_client --;
+                i ++;
+                tmp_iterator = 1;
+            }else{};
             exec_argv = argv + i + 1;
             exec_argc = 0;
 
@@ -440,6 +470,8 @@ NPcommandPack *ParseCMD(char **argv){
                 tmp = tmp -> next;
             };
             initCMDpkg(tmp);
+            strcpy(tmp -> origin_cmd, origin);
+            tmp -> client_id = client_id;
             for(int j = 0; j < exec_argc; j++){
                 strcpy((tmp -> cmd_argv)[j], exec_argv[j]);
             };
@@ -456,6 +488,18 @@ NPcommandPack *ParseCMD(char **argv){
                 };
                 tmp_iterator = 1;
             };
+            if(argv[i + 1][0] == '<'){
+                //oh~, some client have to pipe in to this command
+                tmp_iterator = 1;
+                tmp -> pipefrom_client = 0;
+                while(argv[i + 1][tmp_iterator] != '\0'){
+                    tmp -> pipefrom_client = (tmp -> pipefrom_client) * 10 + (argv[i + 1][tmp_iterator] - '0');
+                    tmp_iterator ++;
+                };
+                tmp -> pipefrom_client --;
+                i ++;
+                tmp_iterator = 1;
+            }else{};
 
             exec_argv = argv + i + 1;
             exec_argc = 0;
@@ -470,17 +514,132 @@ NPcommandPack *ParseCMD(char **argv){
                 tmp = tmp -> next;
             };
             initCMDpkg(tmp);
+            strcpy(tmp -> origin_cmd, origin);
+            tmp -> client_id = client_id;
             for(int j = 0; j < exec_argc; j++){
                 strcpy((tmp -> cmd_argv)[j], exec_argv[j]);
             };
             (tmp -> cmd_argv)[exec_argc] = 0;
             tmp -> cmd_argc = exec_argc;
-            tmp -> pipemechanism = REDIRECT;
-            strcpy(tmp -> filename, argv[i + 1]);
-            tmp -> delayval = -1;
-            i++;
+            if(argv[i][1] != '\0'){
+                tmp -> trgt_client = 0;
+                // this is named pipe out
+                tmp -> pipemechanism = NPIPE_OUT;
+                tmp_iterator = 1;
+                while(argv[i][tmp_iterator] != '\0'){
+                    tmp -> trgt_client = (tmp -> trgt_client) * 10 + (argv[i][tmp_iterator] - '0');
+                    tmp_iterator ++;
+                };
+                tmp -> trgt_client --;
+                tmp_iterator = 1;
+                if(argv[i+1][0] == '<'){
+                    //pipein from certain client id
+                    tmp -> pipefrom_client = 0;
+                    tmp_iterator = 1;
+                    while(argv[i+1][tmp_iterator] != '\0'){
+                        tmp -> pipefrom_client = (tmp -> pipefrom_client) *10 + (argv[i+1][tmp_iterator] - '0');
+                        tmp_iterator ++;
+                    };
+                    tmp -> pipefrom_client --;
+                    tmp_iterator = 1;
+                    i++;
+                }else{};
+            }else{
+                //redirect pipe out
+                tmp -> pipemechanism = REDIRECT;
+                strcpy(tmp -> filename, argv[i + 1]);
+                tmp -> delayval = -1;
+                i++;
+                if(argv[i+1][0] == '<'){
+                    tmp -> pipefrom_client = 0;
+                    tmp_iterator = 1;
+                    while(argv[i+1][tmp_iterator] != '\0'){
+                        tmp -> pipefrom_client = (tmp -> pipefrom_client) *10 + (argv[i+1][tmp_iterator] - '0');
+                        tmp_iterator ++;
+                    };
+                    tmp -> pipefrom_client --;
+                    tmp_iterator = 1;
+                    i++;
+                };
+            };
+            exec_argv = argv + i + 1;
             exec_argc = 0;
 
+        }else if(argv[i][0] == '<'){
+            if(Head == 0){
+                Head = (NPcommandPack *)malloc(sizeof(NPcommandPack));
+                tmp = Head;
+            }else{
+                tmp -> next = (NPcommandPack *)malloc(sizeof(NPcommandPack));
+                tmp = tmp -> next;
+            };
+            initCMDpkg(tmp);
+            strcpy(tmp -> origin_cmd, origin);
+            tmp -> client_id = client_id;
+            for(int j = 0; j < exec_argc; j++){
+                strcpy((tmp -> cmd_argv)[j], exec_argv[j]);
+            };
+            (tmp -> cmd_argv)[exec_argc] = 0;
+            tmp -> cmd_argc = exec_argc;
+            tmp -> pipefrom_client = 0;
+            tmp_iterator = 1;
+            tmp -> pipemechanism = NPIPE_IN;
+            while(argv[i][tmp_iterator] != '\0'){
+                tmp -> pipefrom_client = (tmp -> pipefrom_client) * 10 + (argv[i][tmp_iterator] - '0');
+                tmp_iterator ++;
+            };
+            tmp -> pipefrom_client --;
+            tmp_iterator = 1;
+            if(argv[i+1][0] == '|'){
+                i++;
+                if(argv[i][1] == '\0'){
+                    tmp -> pipemechanism = ORDPIPE;
+                    tmp -> delayval = 1;
+                }else{
+                    tmp -> pipemechanism = NUMPIPE;
+                    tmp -> delayval = 0;
+                    tmp_iterator = 1;
+                    while(argv[i][tmp_iterator] != '\0'){
+                        tmp -> delayval = (tmp -> delayval) * 10 + (argv[i][tmp_iterator] - '0');
+                        tmp_iterator ++;
+                    };
+                    tmp_iterator = 1;
+                };
+            }else if(argv[i+1][0] == '!'){
+                i++;
+                tmp -> pipemechanism = ERRPIPE;
+                if(argv[i][0] == '\0'){
+                    tmp -> delayval = 1;
+                }else{
+                    tmp -> delayval = 0;
+                    while(argv[i][tmp_iterator] != '\0'){
+                        tmp -> delayval = (tmp -> delayval) * 10 + (argv[i][tmp_iterator] - '0');
+                        tmp_iterator ++;
+                    };
+                    tmp_iterator = 1;
+                };
+            }else if(argv[i+1][0] == '>'){
+                i++;
+                if(argv[i][1] != '\0'){
+                    tmp -> trgt_client = 0;
+                    // this is named pipe out
+                    tmp -> pipemechanism = NPIPE_OUT;
+                    tmp_iterator = 1;
+                    while(argv[i][tmp_iterator] != '\0'){
+                        tmp -> trgt_client = (tmp -> trgt_client) * 10 + (argv[i][tmp_iterator] - '0');
+                        tmp_iterator ++;
+                    };
+                    tmp -> trgt_client --;
+                    tmp_iterator = 1;
+                }else{
+                    tmp -> pipemechanism = REDIRECT;
+                    strcpy(tmp -> filename, argv[i + 1]);
+                    tmp -> delayval = -1;
+                    i++;
+                };
+            };
+            exec_argv = argv + i + 1;
+            exec_argc = 0;
         }else{
             exec_argc ++;
         };
@@ -492,6 +651,7 @@ NPcommandPack *ParseCMD(char **argv){
             NPprintDBG("In ParseCMD: Try to initialize Head", DBGLVL);
             Head = (NPcommandPack *)malloc(sizeof(NPcommandPack));
             tmp = Head;
+            tmp -> client_id = client_id;
             NPprintDBG("In ParseCMD: Success initialize Head", DBGLVL);
         }else{
             tmp -> next = (NPcommandPack *)malloc(sizeof(NPcommandPack));
@@ -501,6 +661,7 @@ NPcommandPack *ParseCMD(char **argv){
         };
         NPprintDBG("In ParseCMD: Prepare to init command pack", DBGLVL);
         initCMDpkg(tmp);
+        strcpy(tmp -> origin_cmd, origin);
         NPprintDBG("In ParseCMD: Success to init command pack", DBGLVL);
         for(int j = 0; j < exec_argc; j++){
             strcpy((tmp -> cmd_argv)[j], exec_argv[j]);
