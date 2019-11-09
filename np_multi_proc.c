@@ -26,6 +26,8 @@
 #define NUMPIPE 1
 #define ERRPIPE 2
 #define REDIRECT 3
+#define NPIPE_IN 4
+#define NPIPE_OUT 5
 #define EOFL -1
 
 typedef struct _command
@@ -33,7 +35,8 @@ typedef struct _command
     
     int cmd_argc, pipefrom_client, trgt_client, client_id;
     int pipemechanism; 
-    /* 0: ordinary pipe, 1: number pipe, 2: error pipe, 3: redirection, -1: EOF */
+    /* 0: ordinary pipe, 1: number pipe, 2: error pipe, 3: redirection, 
+    4: named pipe out, 5: named pipe in -1: EOF */
 
     int delayval; /*the number of delayed value*/
     bool builtin;
@@ -1040,7 +1043,7 @@ int main(int main_argc, char **main_argv){
                 argv = ParseBuffer(argv, readbuf, bufsize);
                 bufsize = 0;
                 argc = CountArgc(argv);
-                Head = ParseCMD(argv);
+                Head = ParseCMD(argv, readbuf);
                 //write(1, "H", 1);
                 NPexeCMDPack(Head, Controllor);
                 write(1, strtmsg, 2);
