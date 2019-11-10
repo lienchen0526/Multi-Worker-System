@@ -923,8 +923,11 @@ int NPname(NPcommandPack *dscrpt){
             continue;
         };
     };
+    char yellmsg[300] = {0};
+    sprintf(yellmsg, "*** User from %s is named '%s'. ***\n", (_shm -> clients)[my_id].ip_addr, name);
     memset((_shm -> clients)[my_id].name, '\0', 200 * sizeof(char));
     strcpy((_shm -> clients)[my_id].name, name);
+    NPyell(yellmsg, true);
     _shm -> bffr_lock = false;
     return 1;
 
