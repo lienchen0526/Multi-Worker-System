@@ -780,6 +780,55 @@ int NPsetenv(NPcommandPack *dscrpt){
     };
 };
 
+int NPtell(NPcommandPack *dscrpt){
+    int trgt_cid = 0;
+    int msg_ind = 0;
+    int argv_index = 0;
+
+    char tellmsg[MAXMSG] = {0};
+    char fullmsg[MAXMSG] = {0};
+    char *msgstrt;
+    while((dscrpt -> cmd_argv)[1][argv_index] != '\0'){
+        trgt_cid = trgt_cid * 10 + (dscrpt -> cmd_argv)[1][argv_index] - '0';
+        argv_index ++;
+    };
+    msgstrt = dscrpt -> origin_cmd;
+    msgstrt += 5;
+    while((msgstrt[msg_ind] - '0' >= 0) && (msgstrt[msg_ind] - '0' <= 10)){
+        msgstrt ++;
+    };
+    msgstrt ++;
+    if(!((_shm -> clients)[trgt_cid]._active)){
+        sprintf(fullmsg, "*** Error: user #%d does not exist yet. *** \n", trgt_cid);
+        write(1, fullmsg, strlen(fullmsg));
+        return -1;
+    }else{
+        //client exists
+        int self_pid = getpid();
+        for(int i = 1; i < MAXCLIENTS + 1; i++){
+            if(self_pid == (_shm -> clients)[i].pid){
+                //
+                sprintf(fullmsg, "** %s told you ***: %s\n", 
+                    (_shm -> clients)[i].name, msgstrt);
+
+                while(!(__sync_bool_compare_and_swap(_shm -> _lock + trgt_cid, false, true))){
+                    usleep(1000);
+                };
+                strcpy(_shm -> msg_box[trgt_cid], msgstrt);
+                while(!(__sync_bool_compare_and_swap(_shm -> _lock + trgt_cid, true, false))){
+                    usleep(1000);
+                };
+                kill((_shm -> clients)[trgt_cid].pid, SIGUSR1);
+                return 1;
+
+            }else{
+                continue;
+            };
+        };
+        return -1;
+    }
+};
+
 int NPprintenv(NPcommandPack *dscrpt){
     /**/
     char *gtchar;
@@ -1051,8 +1100,10 @@ int main(int main_argc, char **main_argv){
         pid = fork();
         if(pid > 0){
             close(new_socket);
-            waitpid(pid, &status, 0);
         }else{
+            signal(SIGUSR1, Sighandler);
+            signal(SIGUSR2, Sighandler);
+
             dup2(new_socket, 0);
             dup2(new_socket, 1);
             dup2(new_socket, 2);
