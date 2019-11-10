@@ -106,6 +106,24 @@ UserPool *_shm;
 void Sighandler(int signo){
     if(signo == SIGUSR1){
         // someone execute tell
+        int pid = getpid();
+        for(int i = 1; i < MAXCLIENTS + 1; i++){
+            if(((_shm -> clients)[i]).pid == pid){
+                // I am the one who have to be tell
+                while(!(__sync_bool_compare_and_swap((_shm -> _lock) + i, false, true))){
+                    usleep(1000);
+                };
+                write(1, (_shm -> msg_box)[i], strlen((_shm -> msg_box)[i]));
+                memset((_shm -> msg_box)[i], '\0', strlen((_shm -> msg_box)[i]));
+                while(!(__sync_bool_compare_and_swap((_shm -> _lock) + i, true, false))){
+                    usleep(1000);
+                };
+                return;
+            }else{
+                continue;
+            };
+        };
+        return;
     }else if(signo == SIGUSR2){
         // someone execute mknod
     };
