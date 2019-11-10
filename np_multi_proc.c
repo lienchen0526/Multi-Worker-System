@@ -1035,7 +1035,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
     PCB *new_blk;
 
     if(strcmp((tmp -> cmd_argv)[0], exitcmd) == 0){
-        NPexit();
+        NPlogout();
     }else if(strcmp((tmp -> cmd_argv)[0], setenvcmd) == 0){
         NPsetenv(tmp);
     }else if(strcmp((tmp -> cmd_argv)[0], penvcmd) == 0){
