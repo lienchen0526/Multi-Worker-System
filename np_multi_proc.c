@@ -20,6 +20,8 @@
 #define MAXSTDLENGTH 15000  /*length of whole command length*/
 #define MAXCMDLENGTH 256    /*lenght of single command*/
 #define MAXBUF 100
+#define MAXMSG 15000
+#define MAXCLIENTS 30
 #define DBGLVL 0 /*the bigger the number is, the more detail can be seen, 0 is production mode*/
 
 #define ORDPIPE 0
@@ -67,6 +69,7 @@ typedef struct _PipeControllor
 
 } PipeControllor;
 
+//---------------------- new defined structure for share memory implementation
 typedef struct _usrinfo
 {
     bool _active;
@@ -77,6 +80,24 @@ typedef struct _usrinfo
     char port_name[6];
 
 } SingleClient;
+
+typedef struct _usrpipe
+{
+    bool _active;
+    int readfd, writefd;
+    int size;
+
+} UserPipe;
+
+typedef struct _usrpool
+{
+    bool lock[MAXCLIENTS + 1]
+    SingleClient clients[MAXCLIENTS + 1];
+    char msg_box[MAXMSG];
+    UserPipe namedpipe_table[MAXCLIENTS + 1][MAXCLIENTS + 1];
+
+} UserPool;
+//---------------------- end of declaration of new data structure stored in shared memory
 
 void childHandler(int signo){
     int status;
