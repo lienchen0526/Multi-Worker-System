@@ -815,7 +815,7 @@ int NPtell(NPcommandPack *dscrpt){
                 while(!(__sync_bool_compare_and_swap(_shm -> _lock + trgt_cid, false, true))){
                     usleep(1000);
                 };
-                strcpy(_shm -> msg_box[trgt_cid], msgstrt);
+                strcpy(_shm -> msg_box[trgt_cid], fullmsg);
                 while(!(__sync_bool_compare_and_swap(_shm -> _lock + trgt_cid, true, false))){
                     usleep(1000);
                 };
@@ -912,6 +912,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
     char exitcmd[] = "exit";
     char setenvcmd[] = "setenv";
     char penvcmd[] = "printenv";
+    char tell[] = "tell";
     char printtable[] = "table";
     char tstmsg[] = "enter child\n";
     int execrslt;
@@ -931,6 +932,8 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
         NPprintenv(tmp);
     }else if(strcmp((tmp -> cmd_argv)[0], printtable) == 0){
         NPprintPTable(tmp, PTable);
+    }else if(strcmp((tmp -> cmd_argv)[0], tell) == 0){
+        NPtell(tmp);
     }else{
         /*before fork operations on pipes*/
         ref = SearchPCB(PTable, tmp -> delayval);
