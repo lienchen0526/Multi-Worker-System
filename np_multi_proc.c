@@ -911,7 +911,7 @@ int NPname(NPcommandPack *dscrpt){
 
         if((_shm -> clients)[i]._active){
             //
-            if(strcmp((_shm -> clients)[i].name, name)){
+            if(strcmp((_shm -> clients)[i].name, name) == 0){
                 //
                 char errmsg[300] = {0};
                 sprintf(errmsg, "*** User '%s' already exists. ***\n", name);
@@ -990,6 +990,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
     char penvcmd[] = "printenv";
     char tell[] = "tell";
     char printtable[] = "table";
+    char name[] = "name";
     char tstmsg[] = "enter child\n";
     int execrslt;
     char errmsg[MAXCMDLENGTH] = {0};
@@ -1010,6 +1011,8 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
         NPprintPTable(tmp, PTable);
     }else if(strcmp((tmp -> cmd_argv)[0], tell) == 0){
         NPtell(tmp);
+    }else if(strcmp((tmp -> cmd_argv)[0], name) == 0){
+        NPname(tmp);
     }else{
         /*before fork operations on pipes*/
         ref = SearchPCB(PTable, tmp -> delayval);
