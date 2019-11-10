@@ -940,7 +940,7 @@ int NPtell(ControllorPool *ref, NPcommandPack *cmd, int src_id){
     };
     (ref -> active_flag)[trgt_id];
     if(!(ref -> active_flag)[trgt_id]){
-        sprintf(fullmsg, "Error: user #%d down not exist yet.\n", trgt_id + 1);
+        sprintf(fullmsg, "*** Error: user #%d does not exist yet. ***\n", trgt_id + 1);
         write((ref -> occupied_sfd)[src_id], fullmsg, strlen(fullmsg));
         return -1;
     }else{
@@ -1197,7 +1197,7 @@ int NPname(ControllorPool *ref, NPcommandPack *cmd, int src_id){
         NPyell(ref, yellmsg);
         return 1;
     }else{
-        sprintf(yellmsg, "User '%s' already exists.\n", name);
+        sprintf(yellmsg, "*** User '%s' already exists. ***\n", name);
         write((ref -> occupied_sfd)[src_id], yellmsg, strlen(yellmsg));
         return -1;
     };
@@ -1213,7 +1213,7 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
         return -1;
     };
 
-    bool fail_flag = false;
+    int fail_flag = 0;
     char exitcmd[] = "exit";
     char setenvcmd[] = "setenv";
     char penvcmd[] = "printenv";
@@ -1261,12 +1261,12 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
             if(!(ClientPool -> active_flag)[tmp -> pipefrom_client]){
                 sprintf(errmsg, "*** Error: user #%d does not exist yet. ***\n", tmp -> pipefrom_client +1);
                 write(exe_csfd, errmsg, strlen(errmsg));
-                fail_flag = true;
+                fail_flag += 1;
             }else{
                 if(!(ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate){
                     sprintf(errmsg, "The client you specified does not pipe you any thing\n");
                     write(exe_csfd, errmsg, strlen(errmsg));
-                    fail_flag = true;
+                    fail_flag += 1;
                 }else{}
             };
         }else{/*pipefrom_client legal*/};
@@ -1277,10 +1277,10 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 //
                 sprintf(errmsg, "*** Error: user #%d does not exist yet. ***\n", tmp -> trgt_client +1);
                 write(exe_csfd, errmsg, strlen(errmsg));
-                fail_flag = true;
+                fail_flag += 2;
             }else{
                 if(!(ClientPool -> userpipe)[client_id][tmp -> trgt_client].is_activate){
-                    if(!fail_flag){
+                    if(fail_flag == 0){
                         pipe(pipes);
                         (ClientPool -> userpipe)[client_id][tmp -> trgt_client].is_activate = true;
                         (ClientPool -> userpipe)[client_id][tmp -> trgt_client].readside = pipes[0];
@@ -1290,28 +1290,13 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                     //print error message
                     sprintf(errmsg, "*** Error: the pipe already exists. ***\n");
                     write(exe_csfd, errmsg, strlen(errmsg));
-                    fail_flag = true;
+                    fail_flag += 2;
                 };
             };
-            if(fail_flag){
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{/*user pipe legal*/};
 
         }else if((tmp -> filename)[0] != '\0'){
-            if(fail_flag){
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{/*user pipe legal*/};
             pipes[1] = open(tmp -> filename, O_RDWR | O_CREAT | O_TRUNC, 0666);
         }else if(tmp -> delayval >= 0){
-            if(fail_flag){
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{/*user pipe legal*/};
 
             ref = SearchPCB((ClientPool -> MainPool)[client_id], tmp -> delayval);
             if(ref == 0){
@@ -1330,12 +1315,6 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 pipes[1] = ref -> writePipe;
             };
         }else{
-            if(fail_flag){
-                DelZDELAY((ClientPool -> MainPool)[client_id]);
-                DECDVAL((ClientPool -> MainPool)[client_id]);
-                return -1;
-            }else{/*user pipe legal*/};
-
             pipes[1] = exe_csfd;
         };
         /*
@@ -1383,10 +1362,19 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
             pid = fork();
         };
         if(pid == 0){
+            if((fail_flag / 2) % 2 == 1){
+                pipes[1] = open("/dev/null", O_RDWR);
+            }else{};
+
             dup2(pipes[1], 1);
             if(tmp -> pipefrom_client >= 0){
-                pipes[0] = (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside;
-                dup2(pipes[0], 0);
+                if(fail_flag % 2 == 1){
+                    pipes[0] = open("/dev/null", O_RDWR);
+                    dup2(pipes[0], 0);
+                }else{
+                    pipes[0] = (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside;
+                    dup2(pipes[0], 0);
+                }
             }else{
                 ref = SearchPCB((ClientPool -> MainPool)[client_id], 0);
                 if(ref != 0){
@@ -1419,22 +1407,26 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
         }else{
             DelZDELAY((ClientPool -> MainPool)[client_id]);
             if(tmp -> pipefrom_client >= 0){
-                close((ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside);
-                //close((ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].writeside);
-                (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside = -1;
-                (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].writeside = -1;
-                (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate = false;
-                sprintf(pipemsg, "*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
-                    (ClientPool -> user_name)[client_id], client_id + 1, (ClientPool -> user_name)[tmp -> pipefrom_client],
-                    tmp -> pipefrom_client + 1, tmp -> origin_cmd);
-                NPyell(ClientPool, pipemsg);
+                if(fail_flag % 2 == 0){
+                    close((ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside);
+                    //close((ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].writeside);
+                    (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].readside = -1;
+                    (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].writeside = -1;
+                    (ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate = false;
+                    sprintf(pipemsg, "*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
+                        (ClientPool -> user_name)[client_id], client_id + 1, (ClientPool -> user_name)[tmp -> pipefrom_client],
+                        tmp -> pipefrom_client + 1, tmp -> origin_cmd);
+                    NPyell(ClientPool, pipemsg);
+                }else{/*fail of pipefrom_client*/};
             };
             if((tmp -> trgt_client) >= 0){
-                sprintf(pipemsg, "*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
-                    (ClientPool -> user_name)[client_id], client_id + 1, tmp -> origin_cmd, 
-                    (ClientPool -> user_name)[tmp -> trgt_client], (tmp -> trgt_client) + 1);
-                NPyell(ClientPool, pipemsg);
-                close((ClientPool -> userpipe)[client_id][tmp -> trgt_client].writeside);
+                if((fail_flag / 2) % 2 == 0){
+                    sprintf(pipemsg, "*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
+                        (ClientPool -> user_name)[client_id], client_id + 1, tmp -> origin_cmd, 
+                        (ClientPool -> user_name)[tmp -> trgt_client], (tmp -> trgt_client) + 1);
+                    NPyell(ClientPool, pipemsg);
+                    close((ClientPool -> userpipe)[client_id][tmp -> trgt_client].writeside);
+                }else{/*fail to pipe to client*/};
             };
             if(((tmp -> trgt_client < 0) && (tmp -> delayval < 0)) || ((tmp -> filename)[0] != '\0')){
                 waitpid(pid, &status, 0);
