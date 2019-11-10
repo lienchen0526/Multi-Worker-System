@@ -67,6 +67,17 @@ typedef struct _PipeControllor
 
 } PipeControllor;
 
+typedef struct _usrinfo
+{
+    bool _active;
+    int pid
+    int client_id;
+    char name[200];
+    char ip_addr[21];
+    char port_name[6];
+
+} SingleClient;
+
 void childHandler(int signo){
     int status;
     while(waitpid(-1, &status, WNOHANG) > 0);
@@ -997,17 +1008,6 @@ int main(int main_argc, char **main_argv){
                 //write(1, "H", 1);
                 NPexeCMDPack(Head, Controllor);
                 write(1, strtmsg, 2);
-                /*
-                while(readlen = getline(&readbuf, &max_len, stdin_fp) != -1){
-                    printf("Retrieved line of length %zu :\n", readlen);
-                    printf("%s", readbuf);
-                };
-                for(int i = 0; i < MAXSTDLENGTH + 500; i++){
-                    free(argv[i]);
-                };
-
-                free(argv);
-                */
                 
             };
 
@@ -1017,17 +1017,4 @@ int main(int main_argc, char **main_argv){
         };
     };
 };
-
-
-
-/*
-parent will crash when decdval;
-unhandle unknown command yet;
-mishandle ordinary pipe;
-ls |2 ls |1 number is ok but ls |1 ls |1 number will cause segmentation fault
-ls | ls | cat, cat will not get propriate stdin
-reidrection mode have some issue when open file
-have to wait error pipe to finish writing then print %
-*/
-
 //---------------------------------------------- new
