@@ -321,12 +321,6 @@ char **ParseBuffer(char ** argv, char *buff, int bufsize){
         NPprintDBG("newline from command input detected", DBGLVL);
         buff[bufsize -1] = '\0';
     };
-    /*
-    argv = (char **)calloc((MAXSTDLENGTH + 500), sizeof(char*));
-    for(int i = 0; i < MAXSTDLENGTH + 500; i++){
-        argv[i] = (char *)calloc((MAXSTDLENGTH + 500), sizeof(char));   
-    };
-    */
 
     int indention = 0;
     int shift = 0;
@@ -690,50 +684,6 @@ NPcommandPack *NPgetail(NPcommandPack *Head){
     tail = Head;
     return tail;
 };
-/*
-NPcommandPack *NPreadline(){
-
-    char strtmsg[2] = {'%',' '};
-    char *readbuf = NULL;
-    char *buf_tmp;
-
-    ssize_t readlen;
-    size_t max_len = MAXSTDLENGTH;
-    int tmp_readlen;
-    int argc;
-    char **argv;
-
-    FILE *stdin_fp = fdopen(0, "r");
-
-    NPcommandPack *Head, *tmp_Head, *tail;
-    Head = tmp_Head = tail = 0;
-
-    write(1, strtmsg, 2);
-    readlen = getline(&readbuf, &max_len, stdin_fp);
-    if(readlen <= 0){
-        printf("No content read\n");
-        exit(0);
-    };
-    //printf("readed len: %d\n", readlen);
-    if(readbuf[0] == '\0'){
-        printf("\n");
-        exit(0);
-    };
-    
-    argv = ParseBuffer(readbuf, readlen);
-    argc = CountArgc(argv);
-    //printf("argc = %d\n", argc);
-    Head = ParseCMD(argv);
-
-    for(int i = 0; i < MAXSTDLENGTH + 500; i++){
-        free(argv[i]);
-    };
-
-    free(argv);
-    
-    return Head;
-};
-*/
 
 // ------------------- builtin function ----------
 /*
