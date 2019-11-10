@@ -966,6 +966,33 @@ int NPlogout(){
     return -1;
 };
 
+int NPwho(){
+    while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+        usleep(1000);
+    };
+    int selfpid = getpid();
+    char basemsg[] = "<ID>\t<nickname>\t<IP:port>\t<indicate me>\n";
+    char true_msg[500] = {0};
+    write(1, basemsg, strlen(basemsg));
+
+    for(int i = 1; i < MAXCLIENTS + 1; i++){
+        if((_shm -> clients)[i]._active){
+            if((_shm -> clients)[i].pid == selfpid){
+                //
+                sprintf(true_msg, "%d\t%s\t%s:%s\t <- me\n", i, (_shm -> clients)[i].name,
+                    (_shm -> clients)[i].ip_addr, (_shm -> clients)[i].port_name);
+            }else{
+                //
+                sprintf(true_msg, "%d\t%s\t%s:%s\t\n", i, (_shm -> clients)[i].name,
+                    (_shm -> clients)[i].ip_addr, (_shm -> clients)[i].port_name);
+            };
+            write(1, true_msg, strlen(true_msg));
+        }else{};
+    };
+    _shm -> bffr_lock = false;
+    return 1;
+};
+
 int NPprintenv(NPcommandPack *dscrpt){
     /**/
     char *gtchar;
@@ -1024,6 +1051,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
     char tell[] = "tell";
     char printtable[] = "table";
     char name[] = "name";
+    char who[] = "who";
     char tstmsg[] = "enter child\n";
     int execrslt;
     char errmsg[MAXCMDLENGTH] = {0};
@@ -1046,6 +1074,8 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
         NPtell(tmp);
     }else if(strcmp((tmp -> cmd_argv)[0], name) == 0){
         NPname(tmp);
+    }else if(strcmp((tmp -> cmd_argv)[0], who) == 0){
+        NPwho();
     }else{
         /*before fork operations on pipes*/
         ref = SearchPCB(PTable, tmp -> delayval);
