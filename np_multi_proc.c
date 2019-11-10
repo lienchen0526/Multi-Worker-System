@@ -93,6 +93,7 @@ typedef struct _usrpipe
 
 typedef struct _usrpool
 {
+    bool bffr_lock;
     bool _lock[MAXCLIENTS + 1];
     char msg_box[MAXCLIENTS + 1][MAXMSG];
 
@@ -111,9 +112,6 @@ void Sighandler(int signo){
         for(int i = 1; i < MAXCLIENTS + 1; i++){
             if(((_shm -> clients)[i]).pid == pid){
                 // I am the one who have to be tell
-                while(!(__sync_bool_compare_and_swap((_shm -> _lock) + i, false, true))){
-                    usleep(1000);
-                };
                 write(1, (_shm -> msg_box)[i], strlen((_shm -> msg_box)[i]));
                 memset((_shm -> msg_box)[i], '\0', strlen((_shm -> msg_box)[i]));
                 while(!(__sync_bool_compare_and_swap((_shm -> _lock) + i, true, false))){
@@ -141,6 +139,7 @@ int NPinitshm(){
     _shm = (UserPool *)mmap(NULL, sizeof(UserPool), 
         PROT_WRITE | PROT_READ, 
         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    (_shm -> bffr_lock) = false;
     memset(_shm -> _lock, '\0', (MAXCLIENTS + 1) * sizeof(bool));
     memset(_shm -> msg_box, '\0', MAXMSG * (MAXCLIENTS + 1) * sizeof(char));
     memset(_shm -> clients, '\0', (MAXCLIENTS + 1) * sizeof(SingleClient));
@@ -782,6 +781,10 @@ int NPsetenv(NPcommandPack *dscrpt){
 };
 
 int NPtell(NPcommandPack *dscrpt){
+    while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+        usleep(1000);
+    };
+
     int trgt_cid = 0;
     int msg_ind = 0;
     int argv_index = 0;
@@ -802,6 +805,7 @@ int NPtell(NPcommandPack *dscrpt){
     if(!((_shm -> clients)[trgt_cid]._active)){
         sprintf(fullmsg, "*** Error: user #%d does not exist yet. *** \n", trgt_cid);
         write(1, fullmsg, strlen(fullmsg));
+        _shm -> bffr_lock = false;
         return -1;
     }else{
         //client exists
@@ -809,28 +813,55 @@ int NPtell(NPcommandPack *dscrpt){
         for(int i = 1; i < MAXCLIENTS + 1; i++){
             if(self_pid == (_shm -> clients)[i].pid){
                 //
-                sprintf(fullmsg, "** %s told you ***: %s\n", 
+                sprintf(fullmsg, "*** %s told you ***: %s\n", 
                     (_shm -> clients)[i].name, msgstrt);
 
                 while(!(__sync_bool_compare_and_swap(_shm -> _lock + trgt_cid, false, true))){
                     usleep(1000);
                 };
                 strcpy(_shm -> msg_box[trgt_cid], fullmsg);
-                while(!(__sync_bool_compare_and_swap(_shm -> _lock + trgt_cid, true, false))){
-                    usleep(1000);
-                };
                 kill((_shm -> clients)[trgt_cid].pid, SIGUSR1);
+                _shm -> bffr_lock = false;
                 return 1;
 
             }else{
                 continue;
             };
         };
+        _shm -> bffr_lock = false;
         return -1;
-    }
+    };
 };
 
+int NPyell(char *msg, bool from_builtin = false){
+    if(!from_builtin){
+        while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+            usleep(1000);
+        };
+    }else{};
+
+    for(int i = 1; i < MAXCLIENTS + 1; i ++){
+        if((_shm -> clients)[i]._active){
+            while(!(__sync_bool_compare_and_swap(_shm -> _lock + i, false, true))){
+                usleep(1000);
+            };
+            strcpy(_shm -> msg_box[i], msg);
+            kill((_shm -> clients)[i].pid, SIGUSR1);
+        }else{};
+    };
+
+    if(!from_builtin){
+        (_shm -> bffr_lock) = false;
+    }else{};
+    return 1;
+    
+}
+
 int NPlogin(struct sockaddr_in addr){
+    while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+        usleep(1000);
+    };
+
     char dflt_name[] = "(no name)";
     
     char welcommsg_head[80] = {0};
@@ -841,19 +872,27 @@ int NPlogin(struct sockaddr_in addr){
     sprintf(welcommsg, "%s%s%s", welcommsg_head, welcommsg_body, welcommsg_head);
     
     for(int i = 1; i < MAXCLIENTS + 1; i++){
-        if((__sync_bool_compare_and_swap(&((_shm -> clients)[i]._active), false, true))){
+        if((_shm -> clients)[i]._active == false){
             // use the slot
+            char login_msg[200] = {0};
+            (_shm -> clients)[i]._active = true;
             sprintf((_shm -> clients)[i].name, "%s", dflt_name);
             sprintf((_shm -> clients)[i].port_name, "%d", ntohs(addr.sin_port));
             sprintf((_shm -> clients)[i].ip_addr, "%s", inet_ntoa(addr.sin_addr));
             (_shm -> clients)[i].pid = getpid();
             (_shm -> clients)[i].client_id = i;
             write(1, welcommsg, strlen(welcommsg));
+            sprintf(login_msg, "*** User '%s' entered from %s:%s.***\n", (_shm -> clients)[i].name, 
+                    (_shm -> clients)[i].ip_addr, (_shm -> clients)[i].port_name);
+            //do yell(message, true) over here
+            NPyell(login_msg, true);
+            _shm -> bffr_lock = false;
             return 1;
         }else{
             continue;
         };
     };
+    _shm -> bffr_lock = false;
     return -1; // full of clients
 };
 
