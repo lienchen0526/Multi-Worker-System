@@ -12,6 +12,7 @@
 #include <netinet/in.h> 
 #include <fcntl.h>
 #include <time.h>
+#include <arpa/inet.h>
 
 #include "./src/argparse.h"
 
@@ -829,6 +830,33 @@ int NPtell(NPcommandPack *dscrpt){
     }
 };
 
+int NPlogin(struct sockaddr_in addr){
+    char dflt_name[] = "(no name)";
+    
+    char welcommsg_head[80] = {0};
+    char welcommsg_body[80]= {0};
+    char welcommsg[200] = {0};
+    sprintf(welcommsg_head, "***************************************\n");
+    sprintf(welcommsg_body, "** Welcome to the information server **\n");
+    sprintf(welcommsg, "%s%s%s", welcommsg_head, welcommsg_body, welcommsg_head);
+    
+    for(int i = 1; i < MAXCLIENTS + 1; i++){
+        if((__sync_bool_compare_and_swap(&((_shm -> clients)[i]._active), false, true))){
+            // use the slot
+            sprintf((_shm -> clients)[i].name, "%s", dflt_name);
+            sprintf((_shm -> clients)[i].port_name, "%d", ntohs(addr.sin_port));
+            sprintf((_shm -> clients)[i].ip_addr, "%s", inet_ntoa(addr.sin_addr));
+            (_shm -> clients)[i].pid = getpid();
+            (_shm -> clients)[i].client_id = i;
+            write(1, welcommsg, strlen(welcommsg));
+            return 1;
+        }else{
+            continue;
+        };
+    };
+    return -1; // full of clients
+};
+
 int NPprintenv(NPcommandPack *dscrpt){
     /**/
     char *gtchar;
@@ -1107,6 +1135,7 @@ int main(int main_argc, char **main_argv){
             dup2(new_socket, 0);
             dup2(new_socket, 1);
             dup2(new_socket, 2);
+            NPlogin(*(struct sockaddr_in *)&address);
             write(1, strtmsg, 2);
             while(readlen = getline(&readbuf, &max_len, stdin_fp) != -1){
                 if(readbuf[0] == '\0'){
