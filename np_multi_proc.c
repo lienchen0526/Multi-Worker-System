@@ -896,6 +896,40 @@ int NPlogin(struct sockaddr_in addr){
     return -1; // full of clients
 };
 
+int NPname(NPcommandPack *dscrpt){
+    while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+        usleep(1000);
+    };
+    int mypid = getpid();
+    int my_id;
+
+    char *name = (dscrpt -> cmd_argv)[1];
+    for(int i = 1; i < MAXCLIENTS + 1; i ++){
+        if((_shm -> clients)[i].pid == mypid){
+            my_id = i;
+        }else{};
+
+        if((_shm -> clients)[i]._active){
+            //
+            if(strcmp((_shm -> clients)[i].name, name)){
+                //
+                char errmsg[300] = {0};
+                sprintf(errmsg, "*** User '%s' already exists. ***\n", name);
+                write(1, errmsg, strlen(errmsg));
+                _shm -> bffr_lock = false;
+                return -1;
+            }else{};
+        }else{
+            continue;
+        };
+    };
+    memset((_shm -> clients)[my_id].name, '\0', 200 * sizeof(char));
+    strcpy((_shm -> clients)[my_id].name, name);
+    _shm -> bffr_lock = false;
+    return 1;
+
+};
+
 int NPprintenv(NPcommandPack *dscrpt){
     /**/
     char *gtchar;
