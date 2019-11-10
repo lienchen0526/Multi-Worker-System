@@ -14,8 +14,6 @@
 #include <time.h>
 #include <arpa/inet.h>
 
-#include "./src/argparse.h"
-
 #define PORT 7070
 #define MAXPROCESS 1000     /*allowed forked process number*/
 #define MAXPIPE 1000       /*number of all pipes will be shown in |n */
@@ -24,6 +22,8 @@
 #define MAXBUF 100
 #define MAXMSG 1024
 #define MAXCLIENTS 30
+#define USRPIPEBASE ./user_pipe/
+
 #define DBGLVL 0 /*the bigger the number is, the more detail can be seen, 0 is production mode*/
 
 #define ORDPIPE 0
@@ -125,6 +125,26 @@ void Sighandler(int signo){
         return;
     }else if(signo == SIGUSR2){
         // someone execute mknod
+        int mypid = getpid();
+        int readfd, myid = -1;
+        char basedir[] = "./user_pipe";
+        char fullpath[50] = {0};
+
+        for(int i = 1; i < MAXCLIENTS + 1; i++){
+            if(mypid == (_shm -> clients)[i].pid){
+                myid = i;
+                break;
+            }else{};
+        };
+        for(int i = 1; i < MAXCLIENTS + 1; i ++){
+            if((_shm -> namedpipe_table)[i][myid]._active == true &&
+                (_shm -> namedpipe_table)[i][myid].readfd <= 0){
+                sprintf(fullpath, "%s/%d_%d", basedir, i, myid);
+                readfd = mkfifo(fullpath, 0666);
+                (_shm -> namedpipe_table)[i][myid].readfd = 1;
+                return;
+            }else{};
+        };
     };
     return;
 };
@@ -145,7 +165,7 @@ int NPinitshm(){
     memset(_shm -> clients, '\0', (MAXCLIENTS + 1) * sizeof(SingleClient));
     memset(_shm -> namedpipe_table, '\0', (MAXCLIENTS + 1) * (MAXCLIENTS + 1) * sizeof(UserPipe));
     return 1;
-    };
+};
 
 int NPprintDBG(const char *msg, int flag){
     if(flag < DBGLVL){
