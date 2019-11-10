@@ -933,6 +933,39 @@ int NPname(NPcommandPack *dscrpt){
 
 };
 
+int NPlogout(){
+    while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+        usleep(1000);
+    };
+    int mypid = getpid();
+    for(int i = 1; i < MAXCLIENTS + 1; i++){
+        if((_shm -> clients)[i].pid == mypid){
+            char logout_msg[200] = {0};
+            sprintf(logout_msg, "*** User '%s' left. ***\n", (_shm -> clients)[i].name);
+
+            (_shm -> clients)[i].pid = -1;
+            (_shm -> clients)[i]._active = false;
+            (_shm -> clients)[i].client_id = -1;
+            (_shm -> _lock)[i] = false;
+
+            memset((_shm -> clients)[i].ip_addr, '\0', 21 * sizeof(char));
+            memset((_shm -> clients)[i].port_name, '\0', 6 * sizeof(char));
+            memset((_shm -> clients)[i].name, '\0', 200 * sizeof(char));
+            memset((_shm -> msg_box)[i], '\0', MAXMSG * sizeof(char));
+            NPyell(logout_msg, true);
+            _shm -> bffr_lock = false;
+            NPexit();
+            return 1;
+        }else{
+            continue;
+        };
+    };
+    char errmsg[] = "logout fail\n";
+    write(1, errmsg, strlen(errmsg));
+    _shm -> bffr_lock = false;
+    return -1;
+};
+
 int NPprintenv(NPcommandPack *dscrpt){
     /**/
     char *gtchar;
