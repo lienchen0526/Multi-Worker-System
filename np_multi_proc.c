@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h> //for open() function on redirection
 #include <sys/socket.h>
+#include <sys/mman.h>
 #include <netinet/in.h> 
 #include <fcntl.h>
 #include <time.h>
@@ -20,7 +21,7 @@
 #define MAXSTDLENGTH 15000  /*length of whole command length*/
 #define MAXCMDLENGTH 256    /*lenght of single command*/
 #define MAXBUF 100
-#define MAXMSG 15000
+#define MAXMSG 1024
 #define MAXCLIENTS 30
 #define DBGLVL 0 /*the bigger the number is, the more detail can be seen, 0 is production mode*/
 
@@ -73,7 +74,7 @@ typedef struct _PipeControllor
 typedef struct _usrinfo
 {
     bool _active;
-    int pid
+    int pid;
     int client_id;
     char name[200];
     char ip_addr[21];
@@ -91,19 +92,42 @@ typedef struct _usrpipe
 
 typedef struct _usrpool
 {
-    bool lock[MAXCLIENTS + 1]
+    bool _lock[MAXCLIENTS + 1];
+    char msg_box[MAXCLIENTS + 1][MAXMSG];
+
     SingleClient clients[MAXCLIENTS + 1];
-    char msg_box[MAXMSG];
     UserPipe namedpipe_table[MAXCLIENTS + 1][MAXCLIENTS + 1];
 
 } UserPool;
 //---------------------- end of declaration of new data structure stored in shared memory
+
+UserPool *_shm;
+
+void Sighandler(int signo){
+    if(signo == SIGUSR1){
+        // someone execute tell
+    }else if(signo == SIGUSR2){
+        // someone execute mknod
+    };
+    return;
+};
 
 void childHandler(int signo){
     int status;
     while(waitpid(-1, &status, WNOHANG) > 0);
     return;
 };
+
+int NPinitshm(){
+    _shm = (UserPool *)mmap(NULL, sizeof(UserPool), 
+        PROT_WRITE | PROT_READ, 
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    memset(_shm -> _lock, '\0', (MAXCLIENTS + 1) * sizeof(bool));
+    memset(_shm -> msg_box, '\0', MAXMSG * (MAXCLIENTS + 1) * sizeof(char));
+    memset(_shm -> clients, '\0', (MAXCLIENTS + 1) * sizeof(SingleClient));
+    memset(_shm -> namedpipe_table, '\0', (MAXCLIENTS + 1) * (MAXCLIENTS + 1) * sizeof(UserPipe));
+    return 1;
+    };
 
 int NPprintDBG(const char *msg, int flag){
     if(flag < DBGLVL){
@@ -996,6 +1020,9 @@ int main(int main_argc, char **main_argv){
     Controllor = (PipeControllor *)malloc(sizeof(PipeControllor));
     initControllor(Controllor);
 
+    NPinitshm();
+
+    clearenv();
     setenv("PATH", "bin:.", 1);
     write(1, strtmsg, 2);
 
