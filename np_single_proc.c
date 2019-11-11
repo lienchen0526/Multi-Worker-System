@@ -1003,8 +1003,8 @@ int NPlogin(int client_sfd, struct sockaddr_in addr, ControllorPool *trgt_pool){
     char welcommsg_head[80] = {0};
     char welcommsg_body[80]= {0};
     char welcommsg[200] = {0};
-    sprintf(welcommsg_head, "***************************************\n");
-    sprintf(welcommsg_body, "** Welcome to the information server **\n");
+    sprintf(welcommsg_head, "****************************************\n");
+    sprintf(welcommsg_body, "** Welcome to the information server. **\n");
     sprintf(welcommsg, "%s%s%s", welcommsg_head, welcommsg_body, welcommsg_head);
 
     printf("login detected\n");
@@ -1264,7 +1264,8 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                 fail_flag += 1;
             }else{
                 if(!(ClientPool -> userpipe)[tmp -> pipefrom_client][client_id].is_activate){
-                    sprintf(errmsg, "The client you specified does not pipe you any thing\n");
+                    sprintf(errmsg, "*** Error: the pipe #%d->#%d does not exist yet. ***\n", 
+                        tmp -> pipefrom_client + 1, client_id + 1);
                     write(exe_csfd, errmsg, strlen(errmsg));
                     fail_flag += 1;
                 }else{}
@@ -1288,7 +1289,8 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
                     }else{/*illegal pipefrom client detected*/};
                 }else{
                     //print error message
-                    sprintf(errmsg, "*** Error: the pipe already exists. ***\n");
+                    sprintf(errmsg, "*** Error: the pipe #%d->#%d already exists. ***\n", 
+                        client_id + 1, tmp -> trgt_client + 1);
                     write(exe_csfd, errmsg, strlen(errmsg));
                     fail_flag += 2;
                 };
