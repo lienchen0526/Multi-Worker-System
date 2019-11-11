@@ -136,6 +136,17 @@ void Sighandler(int signo){
                 break;
             }else{};
         };
+
+        for(int i = 1; i < MAXCLIENTS + 1; i++){
+            if((_shm -> clients)[i].pid < -1){
+                sprintf(fullpath, "%s/%d_%d", i, myid);
+                unlink(fullpath);
+                (_shm -> namedpipe_table)[i][myid].readfd = 0;
+                (_shm -> namedpipe_table)[i][myid]._active = false;
+                return;
+            }else{};
+        };
+
         for(int i = 1; i < MAXCLIENTS + 1; i ++){
             if((_shm -> namedpipe_table)[i][myid]._active == true &&
                 (_shm -> namedpipe_table)[i][myid].readfd <= 0){
@@ -904,7 +915,7 @@ int NPlogin(struct sockaddr_in addr){
             write(1, welcommsg, strlen(welcommsg));
             sprintf(login_msg, "*** User '%s' entered from %s:%s.***\n", (_shm -> clients)[i].name, 
                     (_shm -> clients)[i].ip_addr, (_shm -> clients)[i].port_name);
-            //do yell(message, true) over here
+
             NPyell(login_msg, true);
             _shm -> bffr_lock = false;
             return 1;
@@ -958,12 +969,15 @@ int NPlogout(){
         usleep(1000);
     };
     int mypid = getpid();
+    char npipe_basepath[] = "./user_pipe/";
+    char full_path[100] = {0};
+
     for(int i = 1; i < MAXCLIENTS + 1; i++){
         if((_shm -> clients)[i].pid == mypid){
             char logout_msg[200] = {0};
             sprintf(logout_msg, "*** User '%s' left. ***\n", (_shm -> clients)[i].name);
 
-            (_shm -> clients)[i].pid = -1;
+            (_shm -> clients)[i].pid = -mypid;
             (_shm -> clients)[i]._active = false;
             (_shm -> clients)[i].client_id = -1;
             (_shm -> _lock)[i] = false;
@@ -972,6 +986,25 @@ int NPlogout(){
             memset((_shm -> clients)[i].port_name, '\0', 6 * sizeof(char));
             memset((_shm -> clients)[i].name, '\0', 200 * sizeof(char));
             memset((_shm -> msg_box)[i], '\0', MAXMSG * sizeof(char));
+
+            for(int j = 1; j < MAXCLIENTS + 1; j++){
+                if((_shm -> namedpipe_table)[j][i]._active){
+                    sprintf(full_path, "%s/%d_%d", npipe_basepath, j, i);
+                    unlink(full_path); //unlink the readside
+                    (_shm -> namedpipe_table)[j][i].readfd = 0;
+                    (_shm -> namedpipe_table)[j][i]._active = false;
+
+                    if((_shm -> namedpipe_table)[i][j]._active){
+                        // tell the one who read my input to unlink the fifo
+                        kill((_shm -> clients)[j].pid, SIGUSR2);
+                        while((_shm -> namedpipe_table)[i][j]._active){
+                            usleep(1000);
+                        };
+                    }else{};
+                }else{};
+            };
+
+            (_shm -> clients)[i].pid = -1;
             NPyell(logout_msg, true);
             _shm -> bffr_lock = false;
             NPexit();
