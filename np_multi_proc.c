@@ -125,7 +125,7 @@ void Sighandler(int signo){
         return;
     }else if(signo == SIGUSR2){
         // someone execute mknod
-        printf("entering signal hander \n");
+        //printf("entering signal hander \n");
         int mypid = getpid();
         int readfd, myid = -1;
         char basedir[] = "./user_pipe";
@@ -153,7 +153,7 @@ void Sighandler(int signo){
                 sprintf(fullpath, "%s/%d_%d", basedir, i, myid);
                 readfd = mkfifo(fullpath, 0666);
                 readfd = open(fullpath, O_RDONLY);
-                printf("after create fifo, the readfd is %d\n", readfd);
+                //printf("after create fifo, the readfd is %d\n", readfd);
                 (_shm -> namedpipe_table)[i][myid].readfd = readfd;
                 return;
             }else{};
@@ -973,6 +973,7 @@ int NPlogout(){
         if((_shm -> clients)[i].pid == mypid){
             char logout_msg[200] = {0};
             sprintf(logout_msg, "*** User '%s' left. ***\n", (_shm -> clients)[i].name);
+            NPyell(logout_msg, true);
 
             (_shm -> clients)[i].pid = - mypid;
             (_shm -> clients)[i]._active = false;
@@ -1001,7 +1002,7 @@ int NPlogout(){
             };
 
             (_shm -> clients)[i].pid = -1;
-            NPyell(logout_msg, true);
+            
             _shm -> bffr_lock = false;
             NPexit();
             return 1;
@@ -1167,7 +1168,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
             }else{
                 if(!(_shm -> namedpipe_table)[tmp -> pipefrom_client][mycid]._active){
                     // the client do not pipe you anything
-                    sprintf(errmsg, "The client you specified does not pipe you any thing\n");
+                    sprintf(errmsg, "*** Error: the pipe #%d->#%d does not exist yet. ***\n", tmp -> pipefrom_client, mycid);
                     write(1, errmsg, strlen(errmsg));
                     failflag += 1;
                 }else{
@@ -1189,7 +1190,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
                 failflag += 2;
             }else{
                 if((_shm -> namedpipe_table)[mycid][tmp -> trgt_client]._active){
-                    sprintf(errmsg, "*** Error: the pipe already exists. ***\n");
+                    sprintf(errmsg, "*** Error: the pipe #%d->#%d already exists. ***\n", mycid, tmp -> trgt_client);
                     write(1, errmsg, strlen(errmsg));
                     failflag += 2;
                 }else{
@@ -1302,7 +1303,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
                     close(pipes[1]);
                 };
             }else if(tmp -> trgt_client > 0 && (failflag / 2) % 2 == 0){
-                printf("closing file descriptor %d\n", pipes[1]);
+                //printf("closing file descriptor %d\n", pipes[1]);
                 close(pipes[1]);
             }else{};
         };
