@@ -125,6 +125,7 @@ void Sighandler(int signo){
         return;
     }else if(signo == SIGUSR2){
         // someone execute mknod
+        printf("entering signal hander \n");
         int mypid = getpid();
         int readfd, myid = -1;
         char basedir[] = "./user_pipe";
@@ -139,8 +140,7 @@ void Sighandler(int signo){
 
         for(int i = 1; i < MAXCLIENTS + 1; i++){
             if((_shm -> clients)[i].pid < -1){
-                sprintf(fullpath, "%s/%d_%d", i, myid);
-                unlink(fullpath);
+                close((_shm -> namedpipe_table)[i][myid].readfd);
                 (_shm -> namedpipe_table)[i][myid].readfd = 0;
                 (_shm -> namedpipe_table)[i][myid]._active = false;
                 return;
@@ -152,7 +152,9 @@ void Sighandler(int signo){
                 (_shm -> namedpipe_table)[i][myid].readfd <= 0){
                 sprintf(fullpath, "%s/%d_%d", basedir, i, myid);
                 readfd = mkfifo(fullpath, 0666);
-                (_shm -> namedpipe_table)[i][myid].readfd = 1;
+                readfd = open(fullpath, O_RDONLY);
+                printf("after create fifo, the readfd is %d\n", readfd);
+                (_shm -> namedpipe_table)[i][myid].readfd = readfd;
                 return;
             }else{};
         };
@@ -556,7 +558,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                     tmp -> pipefrom_client = (tmp -> pipefrom_client) * 10 + (argv[i + 1][tmp_iterator] - '0');
                     tmp_iterator ++;
                 };
-                tmp -> pipefrom_client --;
                 i ++;
                 tmp_iterator = 1;
             }else{};
@@ -598,7 +599,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                     tmp -> pipefrom_client = (tmp -> pipefrom_client) * 10 + (argv[i + 1][tmp_iterator] - '0');
                     tmp_iterator ++;
                 };
-                tmp -> pipefrom_client --;
                 i ++;
                 tmp_iterator = 1;
             }else{};
@@ -632,7 +632,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                     tmp -> trgt_client = (tmp -> trgt_client) * 10 + (argv[i][tmp_iterator] - '0');
                     tmp_iterator ++;
                 };
-                tmp -> trgt_client --;
                 tmp_iterator = 1;
                 if(argv[i+1][0] == '<'){
                     //pipein from certain client id
@@ -642,7 +641,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                         tmp -> pipefrom_client = (tmp -> pipefrom_client) *10 + (argv[i+1][tmp_iterator] - '0');
                         tmp_iterator ++;
                     };
-                    tmp -> pipefrom_client --;
                     tmp_iterator = 1;
                     i++;
                 }else{};
@@ -659,7 +657,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                         tmp -> pipefrom_client = (tmp -> pipefrom_client) *10 + (argv[i+1][tmp_iterator] - '0');
                         tmp_iterator ++;
                     };
-                    tmp -> pipefrom_client --;
                     tmp_iterator = 1;
                     i++;
                 };
@@ -690,7 +687,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                 tmp -> pipefrom_client = (tmp -> pipefrom_client) * 10 + (argv[i][tmp_iterator] - '0');
                 tmp_iterator ++;
             };
-            tmp -> pipefrom_client --;
             tmp_iterator = 1;
             if(argv[i+1][0] == '|'){
                 i++;
@@ -731,7 +727,6 @@ NPcommandPack *ParseCMD(char **argv, char *origin, int client_id = -1){
                         tmp -> trgt_client = (tmp -> trgt_client) * 10 + (argv[i][tmp_iterator] - '0');
                         tmp_iterator ++;
                     };
-                    tmp -> trgt_client --;
                     tmp_iterator = 1;
                 }else{
                     tmp -> pipemechanism = REDIRECT;
@@ -898,8 +893,8 @@ int NPlogin(struct sockaddr_in addr){
     char welcommsg_head[80] = {0};
     char welcommsg_body[80]= {0};
     char welcommsg[200] = {0};
-    sprintf(welcommsg_head, "***************************************\n");
-    sprintf(welcommsg_body, "** Welcome to the information server **\n");
+    sprintf(welcommsg_head, "****************************************\n");
+    sprintf(welcommsg_body, "** Welcome to the information server. **\n");
     sprintf(welcommsg, "%s%s%s", welcommsg_head, welcommsg_body, welcommsg_head);
     
     for(int i = 1; i < MAXCLIENTS + 1; i++){
@@ -968,6 +963,8 @@ int NPlogout(){
     while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
         usleep(1000);
     };
+    //printf("successfully lock buffer\n");
+    fflush(stdout);
     int mypid = getpid();
     char npipe_basepath[] = "./user_pipe/";
     char full_path[100] = {0};
@@ -977,7 +974,7 @@ int NPlogout(){
             char logout_msg[200] = {0};
             sprintf(logout_msg, "*** User '%s' left. ***\n", (_shm -> clients)[i].name);
 
-            (_shm -> clients)[i].pid = -mypid;
+            (_shm -> clients)[i].pid = - mypid;
             (_shm -> clients)[i]._active = false;
             (_shm -> clients)[i].client_id = -1;
             (_shm -> _lock)[i] = false;
@@ -989,18 +986,17 @@ int NPlogout(){
 
             for(int j = 1; j < MAXCLIENTS + 1; j++){
                 if((_shm -> namedpipe_table)[j][i]._active){
-                    sprintf(full_path, "%s/%d_%d", npipe_basepath, j, i);
-                    unlink(full_path); //unlink the readside
+                    close((_shm -> namedpipe_table)[j][i].readfd);
                     (_shm -> namedpipe_table)[j][i].readfd = 0;
                     (_shm -> namedpipe_table)[j][i]._active = false;
+                }else{};
 
-                    if((_shm -> namedpipe_table)[i][j]._active){
-                        // tell the one who read my input to unlink the fifo
-                        kill((_shm -> clients)[j].pid, SIGUSR2);
-                        while((_shm -> namedpipe_table)[i][j]._active){
-                            usleep(1000);
-                        };
-                    }else{};
+                if((_shm -> namedpipe_table)[i][j]._active){
+                    // tell the one who read my input to unlink the fifo
+                    kill((_shm -> clients)[j].pid, SIGUSR2);
+                    while((_shm -> namedpipe_table)[i][j]._active){
+                        usleep(1000);
+                    };
                 }else{};
             };
 
@@ -1108,9 +1104,11 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
     char yll[] = "yell";
     char tstmsg[] = "enter child\n";
     char yllmsg[1024] = {0};
-
-    int execrslt, mypid;
     char errmsg[MAXCMDLENGTH] = {0};
+    char pipemsg[MAXCMDLENGTH] = {0};
+
+    int execrslt, mypid, mycid;
+    int failflag = 0;
     int errlen = 0;
     int pid, status;
     int pipes[2] = {0,1};
@@ -1139,35 +1137,112 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
                 sprintf(yllmsg, "*** %s yelled ***: %s\n", 
                     (_shm -> clients)[i].name, (tmp -> origin_cmd) + 5);
                 break;
-            }else{};
+            }else{
+                continue;
+            };
         };
         NPyell(yllmsg);
     }else{
         /*before fork operations on pipes*/
-        ref = SearchPCB(PTable, tmp -> delayval);
-        if(ref == 0){
-            /*have to exam if the pipemechanism is ordinary one or number pipe or EOF or redirection*/
-            NPprintDBG("in NPexeSingPack: Do not get any write destination block", 3);
-            if(tmp -> pipemechanism == EOFL){
-                pipes[1] = 1;
-            }else if(tmp -> pipemechanism == REDIRECT){
-                pipes[1] = open(tmp -> filename, O_RDWR | O_CREAT | O_TRUNC, 0666);
-            }else{
-                //NPprintSinglePack(tmp);
-                pipe(pipes);
-                //printf("read side of pipe: %d, write side of pipe: %d\n", pipes[0], pipes[1]);
+        if((tmp -> pipefrom_client >= 0) || (tmp -> trgt_client >= 0)){
+            while(!(__sync_bool_compare_and_swap(&(_shm -> bffr_lock), false, true))){
+                usleep(1000);
+            };
+            mypid = getpid();
+            for(int i = 1; i < MAXCLIENTS + 1; i++){
+                if((_shm -> clients)[i].pid == mypid){
+                    mycid = i;
+                    break;
+                }else{};
+            };
+        };
 
-                /*insert pipe result into pipe controllor*/
-                new_blk = (PCB *)malloc(sizeof(PCB));
-                new_blk -> readPipe = pipes[0];
-                new_blk -> writePipe = pipes[1];
-                new_blk -> errorPipe = 2;
-                new_blk -> delay_val = tmp -> delayval;
-                InsertPCB(PTable, new_blk);
+        // ------------------------- pipefrom client is targeted ------------------------------------------
+        if(tmp -> pipefrom_client >= 0){
+            // command tempt to pipe content from some client
+            if(!(_shm -> clients)[tmp -> pipefrom_client]._active){
+                sprintf(errmsg, "*** Error: user #%d does not exist yet. ***\n", tmp -> pipefrom_client);
+                write(1, errmsg, strlen(errmsg));
+                failflag += 1;
+            }else{
+                if(!(_shm -> namedpipe_table)[tmp -> pipefrom_client][mycid]._active){
+                    // the client do not pipe you anything
+                    sprintf(errmsg, "The client you specified does not pipe you any thing\n");
+                    write(1, errmsg, strlen(errmsg));
+                    failflag += 1;
+                }else{
+                    /* success of gaining the pipe from client*/
+                    sprintf(pipemsg, "*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
+                        (_shm -> clients)[mycid].name, mycid, (_shm -> clients)[tmp -> pipefrom_client].name,
+                        tmp -> pipefrom_client, tmp -> origin_cmd);
+                    NPyell(pipemsg, true);
+                };
+            };
+        };
+        // ------------------------- end of pipefrom client -----------------------------------------------
+
+        // ------------------------- pipe to client detected ----------------------------------------------
+        if(tmp -> trgt_client >= 0){
+            if(!(_shm -> clients)[tmp -> trgt_client]._active){
+                sprintf(errmsg, "*** Error: user #%d does not exist yet. ***\n", tmp -> trgt_client);
+                write(1, errmsg, strlen(errmsg));
+                failflag += 2;
+            }else{
+                if((_shm -> namedpipe_table)[mycid][tmp -> trgt_client]._active){
+                    sprintf(errmsg, "*** Error: the pipe already exists. ***\n");
+                    write(1, errmsg, strlen(errmsg));
+                    failflag += 2;
+                }else{
+                    char basepath[] = "./user_pipe/";
+                    char fullpath[100] = {0};
+
+                    sprintf(fullpath, "%s/%d_%d", basepath, mycid, tmp -> trgt_client);
+                    (_shm -> namedpipe_table)[mycid][tmp -> trgt_client]._active = true;
+                    mkfifo(fullpath, 0666);
+                    kill((_shm -> clients)[tmp -> trgt_client].pid, SIGUSR2);
+                    pipes[1] = open(fullpath, O_WRONLY);
+                    unlink(fullpath);
+
+                    sprintf(pipemsg, "*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
+                        (_shm -> clients)[mycid].name, mycid, tmp -> origin_cmd, 
+                        (_shm -> clients)[tmp -> trgt_client].name, (tmp -> trgt_client));
+                    NPyell(pipemsg, true);
+                };
+            };
+        }else if((tmp -> filename)[0] != '\0'){
+
+            pipes[1] = open(tmp -> filename, O_RDWR | O_CREAT | O_TRUNC, 0666);
+
+        }else if(tmp -> delayval >= 0){
+            ref = SearchPCB(PTable, tmp -> delayval);
+            if(ref == 0){
+                /*have to exam if the pipemechanism is ordinary one or number pipe or EOF or redirection*/
+                NPprintDBG("in NPexeSingPack: Do not get any write destination block", 3);
+                if((tmp -> filename)[0] != '\0'){
+                    pipes[1] = open(tmp -> filename, O_RDWR | O_CREAT | O_TRUNC, 0666);
+                }else if((tmp -> filename)[0] != '\0'){
+                    pipes[1] = 1;
+                }else{
+                    //NPprintSinglePack(tmp);
+                    pipe(pipes);
+                    //printf("read side of pipe: %d, write side of pipe: %d\n", pipes[0], pipes[1]);
+
+                    /*insert pipe result into pipe controllor*/
+                    new_blk = (PCB *)malloc(sizeof(PCB));
+                    new_blk -> readPipe = pipes[0];
+                    new_blk -> writePipe = pipes[1];
+                    new_blk -> errorPipe = 2;
+                    new_blk -> delay_val = tmp -> delayval;
+                    InsertPCB(PTable, new_blk);
+                };
+            }else{
+                pipes[1] = ref -> writePipe;
             };
         }else{
-            pipes[1] = ref -> writePipe;
+            pipes[1] = 1;
         };
+        // ------------------------- end of pipe to client --------------------------------------------------
+
         // printf("trying to fork\n");
         pid = fork();
         // printf("forked pid: %d\n", pid);
@@ -1177,13 +1252,28 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
             pid = fork();
         };
         if(pid == 0){
-            
+            if((failflag / 2) % 2 == 1){
+                pipes[1] = open("/dev/null", O_RDWR);
+            }else{};
+
             dup2(pipes[1], 1);
-            ref = SearchPCB(PTable, 0);
-            if(ref != 0){
-                dup2(ref -> readPipe, 0);
+            if(tmp -> pipefrom_client >= 0){
+                if(failflag % 2 == 1){
+                    pipes[0] = open("/dev/null", O_RDWR);
+                    dup2(pipes[0], 0);
+                }else{
+                    pipes[0] = (_shm -> namedpipe_table)[tmp -> pipefrom_client][mycid].readfd;
+                    (_shm -> namedpipe_table)[tmp -> pipefrom_client][mycid].readfd = -1;
+                    (_shm -> namedpipe_table)[tmp -> pipefrom_client][mycid]._active = false;
+                    dup2(pipes[0], 0);
+                }
             }else{
-                NPprintDBG("In child process: no pipe in message side found", 3);
+                ref = SearchPCB(PTable, 0);
+                if(ref != 0){
+                    dup2(ref -> readPipe, 0);
+                }else{
+                    NPprintDBG("In child process: no pipe in message side found", 3);
+                };
             };
             /*check if the command is error pipe mechanism*/
             if(tmp -> pipemechanism == ERRPIPE){
@@ -1194,7 +1284,10 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
             for(int i = 3; i < 1024; i++){
                 close(i);
             };
-            
+            if((tmp -> pipefrom_client >= 0) || (tmp -> trgt_client >= 0)){
+                (_shm -> bffr_lock) = false;
+            }else{};
+
             execrslt = execvp((tmp -> cmd_argv)[0], (tmp -> cmd_argv));
             if(execrslt < 0){
                 errlen = sprintf(errmsg, "Unknown command: [%s].\n", tmp -> cmd_argv[0]);
@@ -1203,12 +1296,15 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
             exit(0);
         }else{
             DelZDELAY(PTable);
-            if((tmp -> pipemechanism == EOFL) || (tmp -> pipemechanism == REDIRECT)){
+            if(((tmp -> trgt_client < 0) && (tmp -> delayval < 0)) || ((tmp -> filename)[0] != '\0')){
                 waitpid(pid, &status, 0);
-                if(tmp -> pipemechanism == REDIRECT){
+                if(((tmp -> filename)[0] != '\0')){
                     close(pipes[1]);
                 };
-            };
+            }else if(tmp -> trgt_client > 0 && (failflag / 2) % 2 == 0){
+                printf("closing file descriptor %d\n", pipes[1]);
+                close(pipes[1]);
+            }else{};
         };
     };
     DECDVAL(PTable);
