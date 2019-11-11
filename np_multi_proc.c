@@ -1105,8 +1105,11 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
     char printtable[] = "table";
     char name[] = "name";
     char who[] = "who";
+    char yll[] = "yell";
     char tstmsg[] = "enter child\n";
-    int execrslt;
+    char yllmsg[1024] = {0};
+
+    int execrslt, mypid;
     char errmsg[MAXCMDLENGTH] = {0};
     int errlen = 0;
     int pid, status;
@@ -1129,6 +1132,16 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
         NPname(tmp);
     }else if(strcmp((tmp -> cmd_argv)[0], who) == 0){
         NPwho();
+    }else if(strcmp((tmp -> cmd_argv)[0], yll) == 0){
+        mypid = getpid();
+        for(int i = 1; i < MAXCLIENTS + 1; i++){
+            if((_shm -> clients)[i].pid == mypid){
+                sprintf(yllmsg, "*** %s yelled ***: %s\n", 
+                    (_shm -> clients)[i].name, (tmp -> origin_cmd) + 5);
+                break;
+            }else{};
+        };
+        NPyell(yllmsg);
     }else{
         /*before fork operations on pipes*/
         ref = SearchPCB(PTable, tmp -> delayval);
