@@ -23,6 +23,8 @@
 //--------------------------for project 2---------------------------------------------------------------
 #define MAXCLIENT 30
 #define MAX_NLEN 100
+#define MAXENVS 20
+#define MAXENVLEN 50
 //------------------------------------------------------------------------------------------------------
 
 #define ORDPIPE 0
@@ -72,6 +74,14 @@ typedef struct _PCB
 
 } PCB;
 
+typedef struct _envvar
+{
+    bool _envactive;
+    char envname[MAXENVLEN];
+    char envval[MAXENVLEN];
+
+} EnvVar;
+
 typedef struct _PipeControllor
 {
     PCB **PipeTable;
@@ -92,6 +102,7 @@ typedef struct _ControllorPool
     char **PATH_cont;
     UserPipe **userpipe;
     PipeControllor **MainPool;
+    EnvVar Envs[MAXCLIENT][MAXENVS];
 
 } ControllorPool;
 
@@ -321,6 +332,8 @@ int initControllorPool(ControllorPool *trgt){
     trgt -> port_name = (char **)calloc(MAXCLIENT, sizeof(char *));
     trgt -> ip_addr = (char **)calloc(MAXCLIENT, sizeof(char *));
     trgt -> PATH_cont = (char **)calloc(MAXCLIENT, sizeof(char *));
+    memset(trgt -> Envs, 0, MAXCLIENT * MAXENVS * sizeof(EnvVar));
+
     printf("initControllor Pool first check point \n");
     fflush(stdout);
     for(int i = 0; i < MAXCLIENT; i ++){
@@ -1017,11 +1030,24 @@ int NPlogin(int client_sfd, struct sockaddr_in addr, ControllorPool *trgt_pool){
                 //
                 continue;
             }else{
-                //
+                // find a client id slot
                 char login_msg[200] = {0};
                 (trgt_pool -> active_flag)[i] = true;
                 (trgt_pool -> occupied_sfd)[i] = client_sfd;
                 (trgt_pool -> activated_clients_num)++;
+                memset((trgt_pool -> Envs)[i], 0, MAXENVS * sizeof(EnvVar));
+                for(int j = 0; j < MAXENVS; j ++){
+                    if((trgt_pool -> Envs)[i][j]._envactive){
+                        continue;
+                    }else{
+                        char path[] = "PATH";
+                        char dfltval[] = "bin:.";
+                        (trgt_pool -> Envs)[i][j]._envactive = true;
+                        strcpy((trgt_pool -> Envs)[i][j].envname, path);
+                        strcpy((trgt_pool -> Envs)[i][j].envval, dfltval);
+                        break;
+                    };
+                };
                 sprintf((trgt_pool -> port_name)[i], "%d", ntohs(addr.sin_port));
                 sprintf((trgt_pool -> ip_addr)[i], "%s", inet_ntoa(addr.sin_addr));
                 printf("after login, the client ip is %s\n", inet_ntoa(addr.sin_addr));
@@ -1056,7 +1082,7 @@ int NPlogout(int client_sfd, ControllorPool *trgt_pool){
     char logout_msg[200] = {0};
     for(int i = 0; i < MAXCLIENT; i ++){
         if((trgt_pool -> occupied_sfd)[i] == client_sfd){
-            //
+            // That's me.
             (trgt_pool -> active_flag)[i] = false;
             (trgt_pool -> occupied_sfd)[i] = -1;
             sprintf(logout_msg, "*** User '%s' left. ***\n", (trgt_pool -> user_name)[i]);
@@ -1064,6 +1090,7 @@ int NPlogout(int client_sfd, ControllorPool *trgt_pool){
             close(client_sfd);
             memset((trgt_pool -> user_name)[i], '\0', strlen((trgt_pool -> user_name)[i]));
             memset((trgt_pool -> port_name)[i], '\0', strlen((trgt_pool -> port_name)[i]));
+            memset((trgt_pool -> Envs)[i], 0, MAXENVS * sizeof(EnvVar));
             strcpy((trgt_pool -> user_name)[i], dflt_name);
             memset((trgt_pool -> ip_addr)[i], '\0', strlen((trgt_pool -> ip_addr)[i]));
             memset((trgt_pool -> PATH_cont)[i], '\0', strlen((trgt_pool -> PATH_cont)[i]));
@@ -1122,6 +1149,24 @@ int NPsetenv(NPcommandPack *dscrpt, int client_id, ControllorPool *ClientPool){
     }else{
         memset((ClientPool -> PATH_cont)[client_id], '\0', 200);
         strcpy((ClientPool -> PATH_cont)[client_id], (dscrpt -> cmd_argv[2]));
+        int empty_slot = MAXENVS + 1;
+
+        for(int i = 0; i < MAXENVS; i++){
+            if((ClientPool -> Envs)[client_id][i]._envactive){
+                if(strcmp((ClientPool -> Envs)[client_id][i].envname, 
+                    (dscrpt -> cmd_argv)[1]) == 0){
+                    strcpy((ClientPool -> Envs)[client_id][i].envval, (dscrpt -> cmd_argv)[2]);
+                    return setenv((dscrpt -> cmd_argv)[1], (dscrpt -> cmd_argv)[2], 1);
+                } else {};
+            } else {
+                if(i < empty_slot){
+                    empty_slot = i;
+                } else {};
+            };
+        };
+        (ClientPool -> Envs)[client_id][empty_slot]._envactive = true;
+        strcpy((ClientPool -> Envs)[client_id][empty_slot].envname, (dscrpt -> cmd_argv)[1]);
+        strcpy((ClientPool -> Envs)[client_id][empty_slot].envval, (dscrpt -> cmd_argv)[2]);
         return setenv((dscrpt -> cmd_argv)[1], (dscrpt -> cmd_argv)[2], 1);
     };
 };
@@ -1138,8 +1183,18 @@ int NPprintenv(NPcommandPack *dscrpt, int client_id, ControllorPool *ClientPool)
     char gtchar[200] = {0};
     char newline[] = "\n";
     int gtrslt;
-    strcpy(gtchar, (ClientPool -> PATH_cont)[client_id]);
-    if(gtchar == NULL){
+    for(int i = 0; i < MAXENVS; i++){
+        if((ClientPool -> Envs)[client_id][i]._envactive){
+            if(strcmp((ClientPool -> Envs)[client_id][i].envname, 
+                (dscrpt -> cmd_argv[1])) == 0){
+                strcpy(gtchar, (ClientPool -> Envs)[client_id][i].envval);
+                break;
+            } else {};
+        } else {};
+    };
+
+    //strcpy(gtchar, (ClientPool -> PATH_cont)[client_id]);
+    if(gtchar[0] == 0){
         return 0;
     }else{
         gtrslt = write((ClientPool -> occupied_sfd)[client_id], gtchar, strlen(gtchar));
@@ -1233,6 +1288,13 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
 
     PCB *ref;
     PCB *new_blk;
+
+    for(int i = 0; i < MAXENVS; i++){
+        if((ClientPool -> Envs)[client_id][i]._envactive){
+            setenv((ClientPool -> Envs)[client_id][i].envname, 
+                (ClientPool -> Envs)[client_id][i].envval, 1);
+        } else {};
+    };
 
     if(strcmp((tmp -> cmd_argv)[0], exitcmd) == 0){
         NPexit(exe_csfd, ClientPool);
