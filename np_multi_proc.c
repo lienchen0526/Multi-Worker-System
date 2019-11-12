@@ -151,8 +151,10 @@ void Sighandler(int signo){
             if((_shm -> namedpipe_table)[i][myid]._active == true &&
                 (_shm -> namedpipe_table)[i][myid].readfd <= 0){
                 sprintf(fullpath, "%s/%d_%d", basedir, i, myid);
+                (_shm -> namedpipe_table)[i][myid]._active = false;
                 readfd = mkfifo(fullpath, 0666);
                 readfd = open(fullpath, O_RDONLY);
+                (_shm -> namedpipe_table)[i][myid]._active = true;
                 //printf("after create fifo, the readfd is %d\n", readfd);
                 (_shm -> namedpipe_table)[i][myid].readfd = readfd;
                 return;
@@ -1202,6 +1204,7 @@ int NPexeSingPack(NPcommandPack *tmp, PipeControllor *PTable){
                     mkfifo(fullpath, 0666);
                     kill((_shm -> clients)[tmp -> trgt_client].pid, SIGUSR2);
                     pipes[1] = open(fullpath, O_WRONLY);
+                    while((_shm -> namedpipe_table)[mycid][tmp -> trgt_client]._active == false);
                     unlink(fullpath);
 
                     sprintf(pipemsg, "*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
