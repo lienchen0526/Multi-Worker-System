@@ -913,7 +913,7 @@ int NPwho(ControllorPool *ref, NPcommandPack *cmd, int src_id){
             //
             if(src_id == i){
                 //indicate me
-                sprintf(true_msg, "%d\t%s\t%s:%s\t <- me\n", i + 1, (ref -> user_name)[i],
+                sprintf(true_msg, "%d\t%s\t%s:%s\t <-me\n", i + 1, (ref -> user_name)[i],
                 (ref -> ip_addr)[i], (ref -> port_name)[i]);
             }else{
                 sprintf(true_msg, "%d\t%s\t%s:%s\n", i + 1, (ref -> user_name)[i],
@@ -1053,7 +1053,7 @@ int NPlogin(int client_sfd, struct sockaddr_in addr, ControllorPool *trgt_pool){
                 printf("after login, the client ip is %s\n", inet_ntoa(addr.sin_addr));
                 printf("after login, the client port is from %d\n", ntohs(addr.sin_port));
                 fflush(stdout);
-                sprintf(login_msg, "*** User '%s' entered from %s:%s.***\n",(trgt_pool -> user_name)[i] , (trgt_pool -> ip_addr)[i],
+                sprintf(login_msg, "*** User '%s' entered from %s:%s. ***\n",(trgt_pool -> user_name)[i] , (trgt_pool -> ip_addr)[i],
                         (trgt_pool -> port_name)[i]);
                 write(client_sfd, welcommsg, strlen(welcommsg));
                 NPyell(trgt_pool, login_msg);
@@ -1248,7 +1248,8 @@ int NPname(ControllorPool *ref, NPcommandPack *cmd, int src_id){
     };
     if(!(same_flag)){
         strcpy((ref -> user_name)[src_id], name);
-        sprintf(yellmsg, "*** User from %s is named '%s'. ***\n", (ref -> ip_addr)[src_id], name);
+        sprintf(yellmsg, "*** User from %s:%s is named '%s'. ***\n", 
+            (ref -> ip_addr)[src_id], (ref -> port_name)[src_id], name);
         NPyell(ref, yellmsg);
         return 1;
     }else{
@@ -1427,6 +1428,8 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
             pid = fork();
         };
         if(pid == 0){
+            dup2(exe_csfd, 2);
+
             if((fail_flag / 2) % 2 == 1){
                 pipes[1] = open("/dev/null", O_RDWR);
             }else{};
@@ -1464,8 +1467,8 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
             execrslt = execvp((tmp -> cmd_argv)[0], (tmp -> cmd_argv));
             if(execrslt < 0){
                 char strtmsg[2] = {'%', ' '};
-                errlen = sprintf(errmsg, "Unknown command: [%s].\n\0", tmp -> cmd_argv[0]);
-                write(1, errmsg, errlen);
+                errlen = sprintf(errmsg, "Unknown command: [%s].\n", tmp -> cmd_argv[0]);
+                write(2, errmsg, errlen);
                 exit(0);
             };
             exit(0);
