@@ -910,7 +910,7 @@ int NPlogin(struct sockaddr_in addr){
             (_shm -> clients)[i].pid = getpid();
             (_shm -> clients)[i].client_id = i;
             write(1, welcommsg, strlen(welcommsg));
-            sprintf(login_msg, "*** User '%s' entered from %s:%s.***\n", (_shm -> clients)[i].name, 
+            sprintf(login_msg, "*** User '%s' entered from %s:%s. ***\n", (_shm -> clients)[i].name, 
                     (_shm -> clients)[i].ip_addr, (_shm -> clients)[i].port_name);
 
             NPyell(login_msg, true);
@@ -952,7 +952,9 @@ int NPname(NPcommandPack *dscrpt){
         };
     };
     char yellmsg[300] = {0};
-    sprintf(yellmsg, "*** User from %s is named '%s'. ***\n", (_shm -> clients)[my_id].ip_addr, name);
+    sprintf(yellmsg, "*** User from %s:%s is named '%s'. ***\n", 
+        (_shm -> clients)[my_id].ip_addr, (_shm -> clients)[my_id].port_name, name);
+
     memset((_shm -> clients)[my_id].name, '\0', 200 * sizeof(char));
     strcpy((_shm -> clients)[my_id].name, name);
     NPyell(yellmsg, true);
@@ -1031,7 +1033,7 @@ int NPwho(){
         if((_shm -> clients)[i]._active){
             if((_shm -> clients)[i].pid == selfpid){
                 //
-                sprintf(true_msg, "%d\t%s\t%s:%s\t <- me\n", i, (_shm -> clients)[i].name,
+                sprintf(true_msg, "%d\t%s\t%s:%s\t <-me\n", i, (_shm -> clients)[i].name,
                     (_shm -> clients)[i].ip_addr, (_shm -> clients)[i].port_name);
             }else{
                 //
