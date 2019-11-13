@@ -1289,6 +1289,7 @@ int NPexeSingPack(NPcommandPack *tmp, ControllorPool *ClientPool, int exe_csfd, 
     PCB *ref;
     PCB *new_blk;
 
+    clearenv();
     for(int i = 0; i < MAXENVS; i++){
         if((ClientPool -> Envs)[client_id][i]._envactive){
             setenv((ClientPool -> Envs)[client_id][i].envname, 
