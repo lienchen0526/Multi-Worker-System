@@ -1,9 +1,0 @@
-printenv PATH
-ls
-setenv PATH .
-printenv PATH
-ls
-setenv PATH bin
-ls -1 bin
-date
-exit

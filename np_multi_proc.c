@@ -152,7 +152,7 @@ void Sighandler(int signo){
                 (_shm -> namedpipe_table)[i][myid].readfd <= 0){
                 sprintf(fullpath, "%s/%d_%d", basedir, i, myid);
                 (_shm -> namedpipe_table)[i][myid]._active = false;
-                readfd = mkfifo(fullpath, 0666);
+                //readfd = mkfifo(fullpath, 0666);
                 readfd = open(fullpath, O_RDONLY);
                 (_shm -> namedpipe_table)[i][myid]._active = true;
                 //printf("after create fifo, the readfd is %d\n", readfd);
